@@ -1,0 +1,5 @@
+pillow
+escpos
+pyusb
+pypdf
+cython

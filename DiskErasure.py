@@ -1,8 +1,11 @@
 import os
 from pathlib import Path
 from pypdf import PdfReader
-from escpos.printer import Usb
 from PIL import Image
+import usb.core
+import usb.util
+import usb.backend.libusb1
+from escpos.printer import Usb
 
 # ================== CONFIG ==================
 VENDOR_ID = 0x04b8                             # Epson USB vendor ID
@@ -73,14 +76,20 @@ def extract_killdisk_pdf(pdf_path):
 
 
 # ---------- Printer Utilities ----------
-def test_printer_connection(vendor_id, product_id):
-    """Attempt to connect to Epson USB printer."""
-    try:
-        printer = Usb(vendor_id, product_id)
-        return printer
-    except Exception as e:
-        print("Printer connection failed:", e)
-        return None
+def test_printer_connection(vendor_id, product_id, max_retries=5, delay=0.5):
+    """Attempt to connect to Epson USB printer (Windows-friendly) with retries."""
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            printer = Usb(vendor_id, product_id, interface=0)
+            print(f"Printer connected on attempt {attempt}")
+            return printer
+        except Exception as e:
+            print(f"Attempt {attempt} failed: {e}")
+            time.sleep(delay)  # small delay before retry
+
+    print("Failed to connect to printer after multiple attempts.")
+    return None
 
 def print_killdisk_receipt(printer, data, logo_path=LOGO_PATH):
     """Print KillDisk certificate receipt to the connected printer."""

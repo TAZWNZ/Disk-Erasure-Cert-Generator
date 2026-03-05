@@ -4,8 +4,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 from DiskErasure import *
 
-global printer
-printer = None
+printer = test_printer_connection(VENDOR_ID, PRODUCT_ID)
 
 class DiskErasureUI(Tk):
 
@@ -40,6 +39,7 @@ class DiskErasureUI(Tk):
         file = filedialog.askopenfilename(
             title="Select a PDF file",
             defaultextension=".pdf",
+            initialdir="C:\\Users\\TAZW\\certificates\\",
             filetypes=[("PDF Files", "*.pdf")]  # Restrict to PDF only
         )
 
@@ -48,15 +48,11 @@ class DiskErasureUI(Tk):
     def convert_and_print(self):
         contents = extract_killdisk_pdf(self.filename.get())
 
-        global printer
-        if printer is None:
-            printer = test_printer_connection(VENDOR_ID, PRODUCT_ID)
-        if printer:
-
+        try:
             print_killdisk_receipt(printer, contents)
 
-        else:
-            messagebox.showerror(title="Error Processing Certificate", message="An error occured when trying to process and print this certificate. Please try power cycling the receipt printer and try again.")
+        except Exception as e:
+            messagebox.showerror(title="Error Processing Certificate", message="An error occured when trying to process and print this certificate. Please try power cycling the receipt printer and try again.\n\n" + str(e))
 
 if __name__ == "__main__":
     app = DiskErasureUI()

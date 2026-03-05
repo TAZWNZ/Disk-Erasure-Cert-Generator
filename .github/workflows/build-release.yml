@@ -9,12 +9,10 @@ permissions:
   contents: write
 
 jobs:
-
   build:
     runs-on: windows-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      name: ${{ steps.project.outputs.name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -30,13 +28,9 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      # Determine project name
-      - name: Set project name
-        id: project
-        run: |
-          echo "name=DiskErasureTool" >> $env:GITHUB_OUTPUT
-
+      # --------------------------
       # Auto increment version
+      # --------------------------
       - name: Generate version
         id: version
         shell: bash
@@ -44,7 +38,7 @@ jobs:
           VERSION_FILE="version.txt"
 
           if [ ! -f "$VERSION_FILE" ]; then
-            echo "0.0.0" > $VERSION_FILE
+            echo "1.0.0" > $VERSION_FILE
           fi
 
           VERSION=$(cat $VERSION_FILE)
@@ -54,29 +48,40 @@ jobs:
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 
           echo $NEW_VERSION > $VERSION_FILE
-
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      # Commit updated version
-      - name: Commit version bump
+      # --------------------------
+      # Update EXE metadata
+      # --------------------------
+      - name: Update metadata version
+        shell: bash
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add version.txt
-          git commit -m "Auto bump version to ${{ steps.version.outputs.version }}" || exit 0
-          git push
+          VERSION=${{ steps.version.outputs.version }}
 
-      # Build EXE
-      - name: Build executable
+          sed -i "s/FileVersion', '.*'/FileVersion', '$VERSION'/" version_info.txt
+          sed -i "s/ProductVersion', '.*'/ProductVersion', '$VERSION'/" version_info.txt
+
+      # --------------------------
+      # Build executable
+      # --------------------------
+      - name: Build EXE
         run: |
-          pyinstaller --onefile --windowed --collect-all escpos DiskErasureUI.py
+          pyinstaller ^
+            --onefile ^
+            --windowed ^
+            --name DiskErasureTool ^
+            --version-file version_info.txt ^
+            --collect-all escpos ^
+            DiskErasureUI.py
 
+      # --------------------------
       # Upload artifact
-      - name: Upload artifact
+      # --------------------------
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: DiskErasureTool-${{ steps.version.outputs.version }}
-          path: dist/DiskErasureUI.exe
+          path: dist/DiskErasureTool.exe
 
   release:
     needs: build
@@ -85,22 +90,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download built executable
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: DiskErasureTool-${{ needs.build.outputs.version }}
           path: release
 
+      # Create tag
       - name: Create Git tag
         run: |
           git tag v${{ needs.build.outputs.version }}
           git push origin v${{ needs.build.outputs.version }}
 
-      - name: Create GitHub Release
+      # Create GitHub Release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.build.outputs.version }}
-          name: DiskErasureTool v${{ needs.build.outputs.version }}
-          files: release/DiskErasureUI.exe
+          name: Disk Erasure Tool v${{ needs.build.outputs.version }}
+          files: release/DiskErasureTool.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

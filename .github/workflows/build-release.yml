@@ -29,9 +29,9 @@ jobs:
           pip install -r requirements.txt
 
       # --------------------------
-      # Auto increment version
+      # Read version from file
       # --------------------------
-      - name: Generate version
+      - name: Read version
         id: version
         shell: bash
         run: |
@@ -42,31 +42,15 @@ jobs:
           fi
 
           VERSION=$(cat $VERSION_FILE)
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-
-          PATCH=$((PATCH+1))
-          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-
-          echo $NEW_VERSION > $VERSION_FILE
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      # --------------------------
-      # Update EXE metadata
-      # --------------------------
-      - name: Update metadata version
-        shell: bash
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-
-          sed -i "s/FileVersion', '.*'/FileVersion', '$VERSION'/" version_info.txt
-          sed -i "s/ProductVersion', '.*'/ProductVersion', '$VERSION'/" version_info.txt
+          echo "Using version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # --------------------------
       # Build executable
       # --------------------------
       - name: Build EXE
-        run:  |
-          pyinstaller --onefile --windowed --name DiskErasureTool --version-file version_info.txt --collect-all escpos DiskErasureUI.py
+        run: |
+          pyinstaller --onefile --windowed --name DiskErasureTool --version-file version.txt --collect-all escpos DiskErasureUI.py
 
       # --------------------------
       # Upload artifact
@@ -93,8 +77,8 @@ jobs:
       # Create tag
       - name: Create Git tag
         run: |
-          git tag v${{ needs.build.outputs.version }}
-          git push origin v${{ needs.build.outputs.version }}
+          git tag v${{ needs.build.outputs.version }} || echo "Tag already exists, skipping"
+          git push origin v${{ needs.build.outputs.version }} --no-verify || echo "Tag already pushed"
 
       # Create GitHub Release
       - name: Publish release

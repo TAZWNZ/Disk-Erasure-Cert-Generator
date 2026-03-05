@@ -1,0 +1,107 @@
+name: Build and Release Disk Erasure Tool
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # --------------------------
+      # Auto increment version
+      # --------------------------
+      - name: Generate version
+        id: version
+        shell: bash
+        run: |
+          VERSION_FILE="version.txt"
+
+          if [ ! -f "$VERSION_FILE" ]; then
+            echo "1.0.0" > $VERSION_FILE
+          fi
+
+          VERSION=$(cat $VERSION_FILE)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          PATCH=$((PATCH+1))
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+
+          echo $NEW_VERSION > $VERSION_FILE
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      # --------------------------
+      # Update EXE metadata
+      # --------------------------
+      - name: Update metadata version
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+
+          sed -i "s/FileVersion', '.*'/FileVersion', '$VERSION'/" version_info.txt
+          sed -i "s/ProductVersion', '.*'/ProductVersion', '$VERSION'/" version_info.txt
+
+      # --------------------------
+      # Build executable
+      # --------------------------
+      - name: Build EXE
+        run:  |
+          pyinstaller --onefile --windowed --name DiskErasureTool --version-file version_info.txt --collect-all escpos DiskErasureUI.py
+
+      # --------------------------
+      # Upload artifact
+      # --------------------------
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskErasureTool-${{ steps.version.outputs.version }}
+          path: dist/DiskErasureTool.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: DiskErasureTool-${{ needs.build.outputs.version }}
+          path: release
+
+      # Create tag
+      - name: Create Git tag
+        run: |
+          git tag v${{ needs.build.outputs.version }}
+          git push origin v${{ needs.build.outputs.version }}
+
+      # Create GitHub Release
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Disk Erasure Tool v${{ needs.build.outputs.version }}
+          files: release/DiskErasureTool.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

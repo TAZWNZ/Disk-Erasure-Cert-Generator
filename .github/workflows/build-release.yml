@@ -1,0 +1,106 @@
+name: Build and Release Disk Erasure Tool
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      name: ${{ steps.project.outputs.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # Determine project name
+      - name: Set project name
+        id: project
+        run: |
+          echo "name=DiskErasureTool" >> $env:GITHUB_OUTPUT
+
+      # Auto increment version
+      - name: Generate version
+        id: version
+        shell: bash
+        run: |
+          VERSION_FILE="version.txt"
+
+          if [ ! -f "$VERSION_FILE" ]; then
+            echo "0.0.0" > $VERSION_FILE
+          fi
+
+          VERSION=$(cat $VERSION_FILE)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          PATCH=$((PATCH+1))
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+
+          echo $NEW_VERSION > $VERSION_FILE
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      # Commit updated version
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add version.txt
+          git commit -m "Auto bump version to ${{ steps.version.outputs.version }}" || exit 0
+          git push
+
+      # Build EXE
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --windowed --collect-all escpos DiskErasureUI.py
+
+      # Upload artifact
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskErasureTool-${{ steps.version.outputs.version }}
+          path: dist/DiskErasureUI.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download built executable
+        uses: actions/download-artifact@v4
+        with:
+          name: DiskErasureTool-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Create Git tag
+        run: |
+          git tag v${{ needs.build.outputs.version }}
+          git push origin v${{ needs.build.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: DiskErasureTool v${{ needs.build.outputs.version }}
+          files: release/DiskErasureUI.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

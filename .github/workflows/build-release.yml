@@ -65,14 +65,8 @@ jobs:
       # Build executable
       # --------------------------
       - name: Build EXE
-        run: |
-          pyinstaller ^
-            --onefile ^
-            --windowed ^
-            --name DiskErasureTool ^
-            --version-file version_info.txt ^
-            --collect-all escpos ^
-            DiskErasureUI.py
+        run:  |
+          pyinstaller --onefile --windowed --name DiskErasureTool --version-file version_info.txt --collect-all escpos DiskErasureUI.py
 
       # --------------------------
       # Upload artifact

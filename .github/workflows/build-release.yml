@@ -53,13 +53,7 @@ jobs:
 
       # Build EXE
       - name: Build EXE
-        run: |
-          pyinstaller --onefile --windowed \
-          --name DiskErasureTool \
-          --version-file version_info.txt \
-          --collect-all usb \
-          --collect-all escpos \
-          DiskErasureUI.py
+        run: pyinstaller --onefile --windowed --name DiskErasureTool --version-file version_info.txt --collect-all usb --collect-all escpos DiskErasureUI.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
